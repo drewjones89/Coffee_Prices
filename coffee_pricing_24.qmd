@@ -1,0 +1,263 @@
+---
+title: "Pricing Among the Best of the Best"
+author: "Drew Jones"
+subtitle: Price analysis of top US coffee roasters in 2024
+output: html_document
+---
+
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+```{r Loading packages, echo = FALSE, message=FALSE}
+# neccesary packages
+library(readxl)
+library(tidyverse)
+library(skimr)
+library(ggthemes)
+library(broom)
+library(flextable)
+library(stringr)
+library(dplyr)
+library(naniar)
+```
+
+```{r Dataset setup, echo=FALSE, include=FALSE, message=FALSE}
+# read in the data set
+coffee <- read_excel("coffeelist1.xlsx", na = c("NA", "na", ""))
+
+set.seed(333)
+```
+
+### Introduction
+
+* write a new intro blurb* Thankfully, Roastful assembled a list of the Top 100 Roasters in the world as selected by a panel of 32 industry experts. They will be the first to tell you the list is not definitive, however it does provide a good place to start seeking out excellent coffee. 
+
+##### About the dataset
+
+The dataset I use here was built by me, by hand, in Microsoft Excel between December 23, 2024 and January 30, 2025. I collected information on the 168 invidividual cofffee offerings present on the websites of the 15 Top 100 Roasters located in the United States during that time period. 
+
+##### Initial data manipulation
+
+```{r numeric conversion, echo = FALSE}
+# convert price and bag_size to numeric variables
+coffee <- coffee |>
+  mutate(
+    price = as.numeric(price),
+    bag_size = as.numeric(bag_size)
+  )
+```
+
+```{r clean coffee, echo=FALSE}
+# create the adjusted bag price variable
+coffee_clean <- coffee |>
+  mutate(adj_price = (12 * (price / bag_size)))
+
+# subset the dataset to only include single origin coffee
+coffee_clean <- coffee_clean |>
+  filter(single == "yes")
+```
+
+Although I would consider 12 oz to be the most common bag size you might encounter in specialty coffee shops selling beans, in the supermarket, or online, only a few of the Top 100 roasters actually use it. In order to directly compare prices, I create the `adj_price` as $12 \times \frac{\text{price}}{\text{bag\_size}}$ . The purpose of this is to normalize the price per bag as though they all were 12 oz. 
+
+##### Data dictionary
+
+```{r data dictionary, echo = FALSE}
+dataDictionary <- tibble(Variable = colnames(coffee_clean),
+                         Description = c("Name of the coffee roaster",
+                                         "Name of the coffee offering",
+                                         "Shelf price, in USD",
+                                         "Mass of the coffee in the bag, in OZ",
+                                         "Origin country for single-origin coffee",
+                                         "Geographic region in origin country",
+                                         "Dummy variable, yes indicates the coffee is single-origin and no indicates it is a blend",
+                                         "Name of the producing farm, farmer, or washing station",
+                                         "Name of coffee importer. NA indicates the roaster imported on its own",
+                                         "Coffee processing method",
+                                         "Dummy variable, yes indicates the coffee has been decaffeinated",
+                                         "Method of decaffeination used if applicable",
+                                         "First listed variety of coffee",
+                                         "Second listed variety of coffee",
+                                         "Third listed variety of coffee",
+                                         "Fourth listed variety of coffee",
+                                         "First listed origin country for a blend",
+                                         "Second listed origin country for a blend",
+                                         "Third listed origin country for a blend",
+                                         "Dummy variable, yes indicates the roaster is on Roastful's Top 100 list",
+                                         "Price normalized to 12 oz bag size"
+                                         ),
+                         Type = map_chr(coffee_clean, .f = function(x){typeof(x)[1]}),
+                         Class = map_chr(coffee_clean, .f = function(x){class(x)[1]}))
+
+```
+
+```{r show data dictionary, echo=FALSE}
+flextable(dataDictionary, cwidth = 2)|>
+  set_caption(caption = "Figure 1: Data Dictionary") |>
+  theme_vanilla()
+```
+
+Roaster websites vary greatly. There are a variety of naming conventions, levels of transparency, and accessibility of data on the coffees they sell. As a result, some of the observations have my subjective interpretations of data. `farm` is the farm the coffee was grown on, the name of the farmer who grew it, or the washing station that processed the coffee (the case for most African coffees). My entry follows that order, I named the farm if at all possible, but would settle for the specifc farmer or washing station if needed. `process` can vary from roaster to roaster. Passenger Coffee calls Natural Process "Dry" and Washed Process "Wet", for example. There, I substituted the more common names. For the more complex, advanced processes, I tended to simplify them to braod terms like "Anaerobic Washed" even if the website said something like "92 Hour Extended Fermentation Experimental Washed". Truly unique processes are included though, such as "Zero Fermentation" from Archetype Coffee.
+
+Some roasters offer coffees in various size bags. I collected data on the size option that was closest to my 12 oz ideal. These roasters that sell 2 lbs bags certainly offer a greater value there, but that is not how I buy coffee. 
+
+### Exploratory Data Analysis
+
+```{r character EDA, echo = FALSE}
+# eda for character variables
+skim(coffee_clean) |>
+  filter(skim_type == "character") |>
+  select(skim_variable, n_missing, complete_rate, character.n_unique) |>
+  flextable() |>
+  set_caption(caption = "Figure 2: EDA for character variables") |>
+  theme_vanilla()
+```
+
+In *Figure 2*, exploratory data analysis of the character variables are shown. There are 15 Top 100 Roasters in the US, and they featured a total of 119 single origin coffees during the data collection period. These coffees came from 88 producers in  17 different origin countries, were processed 18 different ways, and are made up of dozens of distinct varietals. High levels of missing values in `varietal2`, `varietal3` `varietal4` are explained by the fact that most coffees feature a single varietal.
+
+```{r numeric eda, echo = FALSE}
+# eda for numeric variables
+
+skim(coffee_clean) |>
+    filter(skim_type == "numeric") |>
+  select(skim_variable, n_missing, complete_rate, numeric.mean, numeric.p0, numeric.p25, numeric.p50, numeric.p75, numeric.p100, numeric.sd) |>
+  flextable() |>
+  set_caption(caption = "Figure 3: EDA for numeric variables") |>
+  theme_vanilla()
+```
+
+*Figure 3* shows explatoratory data analysis for the numeric variables. There are 3 observations with missing values. These all come from Botz Coffee, where all menu options were sold out at the time of data collection, and at the time of writing. The median estimated price for a 12 oz bag is \$28.57. The lowest adjusted price for a bag is \$20 and the greatest is \$235.80. 
+
+```{r missingness viz, echo = FALSE}
+# the missingness square 
+coffee_clean |>
+  select( -blend_state1, -blend_state2, -blend_state3) |>
+  gg_miss_fct(fct = roaster) +
+  labs(
+    x = "Roaster",
+    y = "Variable",
+    legend = "% Missing",
+    title = "Onyx stands out in missing Origin, Process, and Varietal",
+    caption = "Figure 4"
+  ) +
+    scale_fill_viridis_c(option = "magma", begin = 0.2, end = 0.8) +
+    theme_few() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r price histogram, echo=FALSE, warning = FALSE}
+adj_price_historgram <- coffee_clean |>
+  ggplot(
+    aes(x = adj_price)) +
+  geom_histogram(bins = 119, 
+                 fill = "#009E73", 
+                 color = "black") +
+    labs(x = "Adjusted Price (USD)",
+        y = "Count",
+        title = "Most bags are $20-$40",
+        caption = "Figure 5") +
+  theme(axis.text.x = element_text(
+      angle = 90, 
+      hjust = 1)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  scale_x_continuous(breaks = seq(10, 260, by = 10),   
+                     labels = seq(10, 260, by = 10)) +
+     theme_few() 
+
+adj_price_historgram
+```
+
+*Figure 5* shows that most of the coffees occupy the \$20-$40 range. There are some, however, that are extremely expensive, totaling over \$100 for an estimated 12 oz. bag. What are these coffees, and what might explain these prices?
+
+
+
+```{r}
+coffee_clean |>
+  filter(bag_size < 7.5) |>
+  arrange(desc(adj_price)) |>
+  mutate(across(where(is.numeric), round, 2)) |>
+  select(bag_size, name, roaster, adj_price, origin_state, process, varietal1, varietal2) |>
+  flextable() |>
+  theme_vanilla() |>
+  set_caption(caption = "Figure 8: Blendin accounts for most of the smallest bags")
+```
+
+*Figure 8* shows that most of these 7 small bags come from a single roaster, Blendin. 
+
+```{r most expensive list, echo = FALSE}
+coffee_clean |>
+  filter(adj_price >= 100) |>
+  arrange(desc(adj_price)) |>
+  mutate(across(where(is.numeric), round, 2)) |>
+  select(adj_price, name, roaster, origin_state, process, varietal1, varietal2) |>
+  flextable() |>
+  theme_vanilla() |>
+  set_caption(caption = "Figure 7: Coffees over $100 for 12 oz") 
+```
+
+
+
+The most expensive coffee here in *Figure 7* is Familia Morales Rivera from Passenger Coffee. COE indicats this particular coffee won a Cup of Excellence competition in Ecudador, which means that it was recognized for exceptional quality and auctioned off for an exceptional price, in this case $235.80 for an estimated 12 oz. bag. The sixth coffee is here appears to be from the same lot, although from the following year's harverst, and the price reflects the expectation that the quality would be exceedingly high.
+
+Some of these coffees are priced so highly due to the technical details of their processing. El Paraiso Zeo from Archetype Coffee was processed in a way I was completely unfamiliar with, "Zeo Drying." I labeled La Negrita from Blending Coffee Club as "Anaerobic Natural," however the website details further steps outside of the standard Anaerobic Natural, suggesting the time, energy, and money to prodcue these beans is especially high as well. 
+
+As for the rest, these are coffees that come from highly respected farms with pedigree growing for brewing competitions. Gesha Village, for example, is one of the only truly micro-lot growing farms in Ethiopia.
+
+```{r bag size and price, echo = FALSE}
+coffee_clean |>
+  ggplot(aes(x = bag_size, 
+             y = adj_price)) +
+  geom_point(position = position_jitter(width = 0.5, height = 0.5)) +
+  labs(x = "Bag size (oz)",
+       y = "Adjusted price per bag (USD)",
+       caption = "Figure 6",
+       title = "Small bags are outliers",
+       subtitle = "Points are jittered"
+  ) +
+  theme_few()
+```
+
+
+In *Figure 6* it is apparent that the 7 coffees with especially small bags are outliers. The most expensive coffee has a `bag_size` around 10 oz. 
+
+
+```{r roaster price averages, echo=FALSE}
+coffee_clean <- coffee_clean |>
+  group_by(roaster) |>
+  mutate(mean_adj_price = mean(adj_price)) |>
+  mutate(median_adj_price = median(adj_price)) |>
+  ungroup()
+```
+
+```{r roaster avg price table, echo=FALSE}
+coffee_clean |>
+  filter(roaster != "Botz") |>
+  group_by(roaster) |>
+  summarize(
+    median_adj_price = median(adj_price, na.rm = TRUE),
+    mean_adj_price = mean(adj_price, na.rm = TRUE)) |>
+  arrange(desc(median_adj_price)) |>
+  flextable() |>
+  set_caption(caption = "Figure 7: Prodigal stands out as the most expensive") |>
+  theme_vanilla()
+
+```
+
+Figure 6 shows the 15 roasters ranked by `median_adj_price`, and also shows `mean_adj_price` and Prodigal stands out as significantly more exp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

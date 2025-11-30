@@ -1,0 +1,102 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+```{r Loading-packages, echo = FALSE, message=FALSE, warning = FALSE}
+# neccesary packages
+library(readxl)
+library(tidyverse)
+library(skimr)
+library(ggthemes)
+library(broom)
+library(flextable)
+library(stringr)
+library(dplyr)
+library(naniar)
+```
+
+```{r Dataset-setup, echo=FALSE, include=FALSE, message=FALSE}
+# read in the data set
+coffee <- read_excel("coffeelist1.xlsx", na = c("NA", "na", ""))
+
+set.seed(333)
+```
+
+### Introduction
+
+* write a new intro blurb* Thankfully, Roastful assembled a list of the Top 100 Roasters in the world as selected by a panel of 32 industry experts. They will be the first to tell you the list is not definitive, however it does provide a good place to start seeking out excellent coffee. 
+
+##### About the dataset
+
+The dataset I use here was built by me, by hand, in Microsoft Excel between December 23, 2024 and January 30, 2025. I collected information on the 168 invidividual cofffee offerings present on the websites of the 15 Top 100 Roasters located in the United States during that time period. 
+
+##### Initial data manipulation
+
+```{r numeric-conversion, echo = FALSE}
+# convert price and bag_size to numeric variables
+coffee <- coffee |>
+  mutate(
+    price = as.numeric(price),
+    bag_size = as.numeric(bag_size)
+  )
+```
+
+```{r clean-coffee, echo=FALSE}
+# create the adjusted bag price variable
+coffee_clean <- coffee |>
+  mutate(adj_price = (12 * (price / bag_size)))
+
+# subset the dataset to only include single origin coffee
+coffee_clean <- coffee_clean |>
+  filter(single == "yes")
+```
+
+Although I would consider 12 oz to be the most common bag size you might encounter in specialty coffee shops selling beans, in the supermarket, or online, only a few of the Top 100 roasters actually use it. In order to directly compare prices, I create the `adj_price` as $12 \times \frac{\text{price}}{\text{bag\_size}}$ . The purpose of this is to normalize the price per bag as though they all were 12 oz. 
+
+##### Data dictionary
+
+*i need to add year to all of this, and add year to the data dictionary*
+
+
+```{r data dictionary, echo = FALSE}
+dataDictionary <- tibble(Variable = colnames(coffee_clean),
+                         Description = c("Name of the coffee roaster",
+                                         "Name of the coffee offering",
+                                         "Shelf price, in USD",
+                                         "Mass of the coffee in the bag, in OZ",
+                                         "Origin country for single-origin coffee",
+                                         "Geographic region in origin country",
+                                         "Dummy variable, yes indicates the coffee is single-origin and no indicates it is a blend",
+                                         "Name of the producing farm, farmer, or washing station",
+                                         "Name of coffee importer. NA indicates the roaster imported on its own",
+                                         "Coffee processing method",
+                                         "Dummy variable, yes indicates the coffee has been decaffeinated",
+                                         "Method of decaffeination used if applicable",
+                                         "First listed variety of coffee",
+                                         "Second listed variety of coffee",
+                                         "Third listed variety of coffee",
+                                         "Fourth listed variety of coffee",
+                                         "First listed origin country for a blend",
+                                         "Second listed origin country for a blend",
+                                         "Third listed origin country for a blend",
+                                         "Dummy variable, yes indicates the roaster is on Roastful's Top 100 list",
+                                         "Price normalized to 12 oz bag size"
+                                         ),
+                         Type = map_chr(coffee_clean, .f = function(x){typeof(x)[1]}),
+                         Class = map_chr(coffee_clean, .f = function(x){class(x)[1]}))
+
+```
+
+```{r show-data-dictionary, echo=FALSE}
+#| label: data_dictionary
+#| tbl-cap: Figure 1
+#| tbl-title: Spitt
+flextable(dataDictionary, cwidth = 2)|>
+  theme_vanilla()
+```

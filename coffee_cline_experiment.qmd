@@ -1,0 +1,179 @@
+---
+title: "Coffee Pricing Experiment: A New Take"
+author: "Drew Jones"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    code-fold: true
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+#| label: setup
+#| echo: false
+library(readxl)
+library(tidyverse)
+library(skimr)
+library(ggthemes)
+library(flextable)
+library(naniar)
+
+# Set seed for reproducibility
+set.seed(333)
+
+# Load raw dataset
+coffee <- read_excel("coffeelist1.xlsx", na = c("NA", "na", ""))
+
+# Initial numeric conversion
+coffee <- coffee |>
+  mutate(
+    price = as.numeric(price),
+    bag_size = as.numeric(bag_size)
+  )
+
+# Create clean version (filter for single-origin and calculate adjusted price)
+coffee_clean <- coffee |>
+  mutate(adj_price = (12 * (price / bag_size))) |>
+  filter(single == "yes")
+```
+
+## Introduction
+
+This document is a new take on analyzing the specialty coffee pricing dataset collected between December 2024 and January 2025. It contains details on 168 coffee offerings from 15 of the top United States specialty coffee roasters (as recognized by *Roastful's Top 100*).
+
+To compare prices directly across varying bag sizes, we calculate an `adj_price` which standardizes the shelf price to a common 12 oz bag size:
+$$\text{Adjusted Price} = 12 \times \frac{\text{Price}}{\text{Bag Size (oz)}}$$
+
+---
+
+## Exploratory Data Analysis
+
+### Glimpse of the Raw Data
+
+Let's inspect the raw `coffee` structure to understand its columns, types, and some sample values.
+
+```{r glimpse-raw}
+#| label: glimpse-raw
+glimpse(coffee)
+```
+
+### Glimpse of the Cleaned Single-Origin Data
+
+Next, let's glimpse our filtered single-origin subset (`coffee_clean`).
+
+```{r glimpse-clean}
+#| label: glimpse-clean
+glimpse(coffee_clean)
+```
+
+### Statistical Summary
+
+Below are the summary statistics of the raw data (`coffee`) and the cleaned dataset (`coffee_clean`).
+
+```{r summary-raw}
+#| label: summary-raw
+summary(coffee)
+```
+
+```{r summary-clean}
+#| label: summary-clean
+summary(coffee_clean)
+```
+
+---
+
+## Written Summary of Findings
+
+### 1. Data Structure and Missingness
+* **Observations**: The raw dataset contains 167 coffee offerings across 20 attributes. Subsetting to single-origin offerings leaves 124 records.
+* **Missingness**: There are 3 offerings (from Botz Coffee) with missing price and bag size, as they were sold out during collection. Additionally, secondary varietals (`varietal2` through `varietal4`) have high missingness because most specialty coffees are single-variety lots.
+* **Bag Sizes**: Bag sizes vary considerably, ranging from tiny 3.5 oz sample bags up to standard 12 oz bags. The average bag size is roughly 10 oz.
+
+### 2. Price Distribution and Normalization
+* **Shelf Price vs. Adjusted Price**: The raw shelf prices range from \$14.00 to \$196.50 (median \$23.00), while the adjusted prices range from \$20.00 to \$235.80 (median \$28.58).
+* **Extreme Outliers**: The distribution is highly right-skewed. The vast majority of offerings lie in the \$20.00 to \$40.00 range, but a small handful of exceptional lots exceed \$100.00 per 12 oz.
+
+### 3. Key Price Drivers: Origin and Processing
+* **Origin country**: Single-origin coffees from Panama (median \$158.00, $n=1$) and Ecuador (median \$76.90, $n=10$) command the highest median prices. Colombia ($n=45$) and Ethiopia ($n=21$) are the most common origins, with Colombian coffees exhibiting extreme price variance (up to \$170.00) due to competitive auction lots.
+* **Processing methods**: Standard washed ($n=69$) and natural ($n=16$) coffees represent the bulk of the dataset and are priced moderately (medians around \$28.00). In contrast, specialized experimental methods like "Zeo Drying" (\$170.00), "Anaerobic Natural" (median \$108.00), and "Anaerobic Washed" (median \$83.90) command heavy premiums.
+
+---
+
+## Basic Visualizations
+
+### Price Distribution by Origin Country
+
+The plot below shows the distribution of adjusted coffee prices across different origin countries, ordered by their median price.
+
+```{r plot-origin, fig.width=9, fig.height=6}
+#| label: plot-origin
+#| message: false
+#| warning: false
+coffee_clean |>
+  mutate(origin_state = fct_reorder(coalesce(origin_state, "Unknown"), adj_price, .fun = median)) |>
+  ggplot(aes(x = origin_state, y = adj_price, fill = origin_state)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+  geom_jitter(width = 0.15, size = 1.5, alpha = 0.7, color = "black") +
+  coord_flip() +
+  labs(
+    title = "Ecuador and Panama Lead Adjusted Coffee Prices",
+    subtitle = "Single-origin coffees, normalized to 12 oz bags",
+    x = "Origin Country",
+    y = "Adjusted Price (USD)",
+    caption = "Source: coffeelist1.xlsx"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+### Price Distribution by Processing Method
+
+This plot groups the processing methods and highlights how advanced fermentation and drying techniques drive specialty coffee prices upward.
+
+```{r plot-process, fig.width=9, fig.height=6}
+#| label: plot-process
+#| message: false
+#| warning: false
+coffee_clean |>
+  mutate(
+    process_clean = case_when(
+      process == "natural" ~ "Natural",
+      process == "Wahsed" ~ "Washed",
+      is.na(process) ~ "Unknown",
+      TRUE ~ process
+    ),
+    process_group = fct_lump_min(process_clean, min = 3, other_level = "Other Experimental/Rare")
+  ) |>
+  filter(!is.na(adj_price)) |>
+  mutate(process_group = fct_reorder(process_group, adj_price, .fun = median)) |>
+  ggplot(aes(x = process_group, y = adj_price, fill = process_group)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+  geom_jitter(width = 0.15, size = 1.5, alpha = 0.7, color = "black") +
+  coord_flip() +
+  labs(
+    title = "Experimental & Anaerobic Processes Command Premium Prices",
+    subtitle = "Single-origin coffees, normalized to 12 oz bags",
+    x = "Processing Method",
+    y = "Adjusted Price (USD)",
+    caption = "Source: coffeelist1.xlsx"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+ggplot(data = coffee_clean, aes(x = origin_state, y = adj_price, fill = origin_state)) +
+    geom_line(stat = "density", alpha = 0.5) +
+    geom_point(size = 1.5, alpha = 0.7, color = "black") +
+    coord_flip() +
+    labs(
+        title = "Ecuador and Panama Lead Adjusted Coffee Prices",
+        subtitle = "Single-origin coffees, normalized to 12 oz bags",
+        x = "Origin Country",
+        y = "Adjusted Price (USD)",
+        caption = "Source: coffeelist1.xlsx"
+    )
+```

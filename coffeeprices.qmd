@@ -1,8 +1,10 @@
 ---
-title: "Pricing Among the Best of the Best"
+title: "Bang for your Buck Among the Best of the Best"
 author: "Drew Jones"
-subtitle: Price analysis of top US coffee roasters in 2024
-output: html_document
+subtitle: Price analysis of top US coffee roasters
+format: html
+execute:
+  error: true
 ---
 
 ```{r}
@@ -21,8 +23,10 @@ library(naniar)
 ```
 
 ```{r}
-#| label: dataset_setup
+#| label: dataset-setup
 #| echo: false
+#| include: false
+#| message: false
 coffee <- read_excel("coffeelist1.xlsx", na = c("NA", "na", ""))
 
 set.seed(333)
@@ -30,7 +34,7 @@ set.seed(333)
 
 ### Introduction
 
-* write a new intro blurb* Thankfully, Roastful assembled a list of the Top 100 Roasters in the world as selected by a panel of 32 industry experts. They will be the first to tell you the list is not definitive, however it does provide a good place to start seeking out excellent coffee. 
+I love coffee. I got into doing pourovers in 2021 and have not looked back since. Waking up and enjoying incredible filter coffee every morning is an essential part of my daily life, and has led to a number of wonderful experiences and strong friendships. When seeking out new coffees to try however, things can become complicated. The first is that there are more roasters than I could ever try in my life. Thankfully, Roastful assembled a list of the Top 100 Roasters in the world as selected by a panel of 32 industry experts. They will be the first to tell you the list is not definitive, however it does provide a good place to start seeking out excellent coffee. 
 
 ##### About the dataset
 
@@ -39,8 +43,9 @@ The dataset I use here was built by me, by hand, in Microsoft Excel between Dece
 ##### Initial data manipulation
 
 ```{r}
-#| label: numeric_conversion
+#| label: numeric-conversion
 #| echo: false
+# convert price and bag_size to numeric variables
 coffee <- coffee |>
   mutate(
     price = as.numeric(price),
@@ -48,9 +53,10 @@ coffee <- coffee |>
   )
 ```
 
-```{r clean-coffee, echo=FALSE}
-#| label: clean_coffee
+```{r}
+#| label: clean-coffee
 #| echo: false
+# create the adjusted bag price variable
 coffee_clean <- coffee |>
   mutate(adj_price = (12 * (price / bag_size)))
 
@@ -59,15 +65,12 @@ coffee_clean <- coffee_clean |>
   filter(single == "yes")
 ```
 
-Although I would consider 12 oz to be the most common bag size you might encounter in specialty coffee shops selling beans, in the supermarket, or online, only a few of the Top 100 roasters actually use it. In order to directly compare prices, I create the `adj_price` as $12 \times \frac{\text{price}}{\text{bag\_size}}$ . The purpose of this is to normalize the price per bag as though they all were 12 oz. 
+Although I would consider 12 oz to be teh most common bag size you might encounter in specialty coffee shops selling beans, in the supermarket, or online, only a few of the Top 100 roasters actually use it. In order to directly compare prices, I create the `adj_price` as $12 \times \frac{\text{price}}{\text{bag\_size}}$. The purpose of this is to normalize the price per bag as though they all were 12 oz. 
 
 ##### Data dictionary
 
-*i need to add year to all of this, and add year to the data dictionary*
-
-
-```{r data dictionary, echo = FALSE}
-#| label: data_dictionary
+```{r}
+#| label: data-dictionary
 #| echo: false
 dataDictionary <- tibble(Variable = colnames(coffee_clean),
                          Description = c("Name of the coffee roaster",
@@ -94,14 +97,13 @@ dataDictionary <- tibble(Variable = colnames(coffee_clean),
                                          ),
                          Type = map_chr(coffee_clean, .f = function(x){typeof(x)[1]}),
                          Class = map_chr(coffee_clean, .f = function(x){class(x)[1]}))
-
 ```
 
 ```{r}
-#| label: data_dictionary_show
-#| tbl-cap: "Figure 1: Data Dictionary"
+#| label: show-data-dictionary
 #| echo: false
-flextable(dataDictionary, cwidth = 2)|>
+flextable(dataDictionary, cwidth = 2) |>
+  set_caption(caption = "Figure 1: Data Dictionary") |>
   theme_vanilla()
 ```
 
@@ -112,107 +114,94 @@ Some roasters offer coffees in various size bags. I collected data on the size o
 ### Exploratory Data Analysis
 
 ```{r}
-#| label: eda_character
+#| label: character-eda
 #| echo: false
-#| tbl-cap: "Figure 2: EDA for Character Variables"
+# eda for character variables
 skim(coffee_clean) |>
   filter(skim_type == "character") |>
   select(skim_variable, n_missing, complete_rate, character.n_unique) |>
   flextable() |>
+  set_caption(caption = "Figure 2: EDA for character variables") |>
   theme_vanilla()
 ```
 
 In *Figure 2*, exploratory data analysis of the character variables are shown. There are 15 Top 100 Roasters in the US, and they featured a total of 119 single origin coffees during the data collection period. These coffees came from 88 producers in  17 different origin countries, were processed 18 different ways, and are made up of dozens of distinct varietals. High levels of missing values in `varietal2`, `varietal3` `varietal4` are explained by the fact that most coffees feature a single varietal.
 
 ```{r}
-#| label: eda_numeric
+#| label: numeric-eda
 #| echo: false
-#| tbl-cap: "Figure 3:EDA for Numeric Variables"
+# eda for numeric variables
 skim(coffee_clean) |>
     filter(skim_type == "numeric") |>
   select(skim_variable, n_missing, complete_rate, numeric.mean, numeric.p0, numeric.p25, numeric.p50, numeric.p75, numeric.p100, numeric.sd) |>
   flextable() |>
+  set_caption(caption = "Figure 3: EDA for numeric variables") |>
   theme_vanilla()
 ```
-
-*NOTE: Is it possible to get this on two rows maybe?*
 
 *Figure 3* shows explatoratory data analysis for the numeric variables. There are 3 observations with missing values. These all come from Botz Coffee, where all menu options were sold out at the time of data collection, and at the time of writing. The median estimated price for a 12 oz bag is \$28.57. The lowest adjusted price for a bag is \$20 and the greatest is \$235.80. 
 
 ```{r}
-#| label: missingness
+#| label: missingness-viz
 #| echo: false
-#| message: false
+# the missingness square 
 coffee_clean |>
-  select( -blend_state1, -blend_state2, -blend_state3) |>
+  select(-blend_state1, -blend_state2, -blend_state3) |>
   gg_miss_fct(fct = roaster) +
   labs(
     x = "Roaster",
     y = "Variable",
     title = "Onyx stands out in missing Origin, Process, and Varietal",
     caption = "Figure 4"
-  ) +
-    scale_fill_viridis_c(option = "magma", begin = 0.2, end = 0.8, name = "% Missing") +
-    theme_few() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
 ```
 
 ```{r}
-#| label: price_histogram
+#| label: price-histogram
 #| echo: false
 #| warning: false
-adj_price_historgram <- coffee_clean |>
-  ggplot(
-    aes(x = adj_price)) +
+coffee_clean |>
+  ggplot(aes(x = adj_price)) +
   geom_histogram(bins = 119, 
-  fill = "#B63679FF", 
-  color = "black") +
-    labs(x = "Adjusted Price (USD)",
-        y = "Count",
-        title = "Most bags are $20-$40",
-        caption = "Figure 5") +
-  theme(axis.text.x = element_text(
-      angle = 90, 
-      hjust = 1)) +
+                 fill = "#009E73", 
+                 color = "black") +
+  labs(x = "Adjusted Price (USD)",
+       y = "Count",
+       title = "Most bags are $20-$40",
+       caption = "Figure 5") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   scale_x_continuous(breaks = seq(10, 260, by = 10),   
                      labels = seq(10, 260, by = 10)) +
-     theme_few() 
-
-adj_price_historgram
+  theme_few()
 ```
-
-*NOTE: Change the color to just be magma*
 
 *Figure 5* shows that most of the coffees occupy the \$20-$40 range. There are some, however, that are extremely expensive, totaling over \$100 for an estimated 12 oz. bag. What are these coffees, and what might explain these prices?
 
 ```{r}
-#| label: table_small_bags
-#| echo: false
-#| tbl-cap: "Figure 6: Blending Accoutns for Most of the Small Bags"
+#| label: small-bags-table
 coffee_clean |>
   filter(bag_size < 7.5) |>
   arrange(desc(adj_price)) |>
-  mutate(across(where(is.numeric),  \(x) round(x, 2))) |>
-  select(bag_size, name, roaster, adj_price,
-        origin_state, process, varietal1, varietal2) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2))) |>
+  select(bag_size, name, roaster, adj_price, origin_state, process, varietal1, varietal2) |>
   flextable() |>
-  theme_vanilla()
+  theme_vanilla() |>
+  set_caption(caption = "Figure 8: Blendin accounts for most of the smallest bags")
 ```
 
-*Figure 6* shows that most of these 7 small bags come from a single roaster, Blendin. 
+*Figure 8* shows that most of these 7 small bags come from a single roaster, Blendin. 
 
 ```{r}
-#| label: tbl_over_100
+#| label: most-expensive-list
 #| echo: false
-#| tbl-cap: "Coffees over $100 for 12 oz bag"
 coffee_clean |>
   filter(adj_price >= 100) |>
   arrange(desc(adj_price)) |>
   mutate(across(where(is.numeric), \(x) round(x, 2))) |>
   select(adj_price, name, roaster, origin_state, process, varietal1, varietal2) |>
   flextable() |>
-  theme_vanilla()
+  theme_vanilla() |>
+  set_caption(caption = "Figure 7: Coffees over $100 for 12 oz") 
 ```
 
 The most expensive coffee here in *Figure 7* is Familia Morales Rivera from Passenger Coffee. COE indicats this particular coffee won a Cup of Excellence competition in Ecudador, which means that it was recognized for exceptional quality and auctioned off for an exceptional price, in this case $235.80 for an estimated 12 oz. bag. The sixth coffee is here appears to be from the same lot, although from the following year's harverst, and the price reflects the expectation that the quality would be exceedingly high.
@@ -222,33 +211,25 @@ Some of these coffees are priced so highly due to the technical details of their
 As for the rest, these are coffees that come from highly respected farms with pedigree growing for brewing competitions. Gesha Village, for example, is one of the only truly micro-lot growing farms in Ethiopia.
 
 ```{r}
-#| label: point_size_price
+#| label: bag-size-and-price
 #| echo: false
-#| warning: false
 coffee_clean |>
   ggplot(aes(x = bag_size, 
              y = adj_price)) +
-  geom_point(position = position_jitter(width = 0.5, height = 0.5), 
-             shape = 21, 
-             fill = "#B63679FF", 
-             color = "black",
-             size = 2,
-             alpha = 0.6) +
+  geom_point(position = position_jitter(width = 0.5, height = 0.5)) +
   labs(x = "Bag size (oz)",
        y = "Adjusted price per bag (USD)",
        caption = "Figure 6",
-       title = "Small bags are are both rare and expensive",
+       title = "Small bags are outliers",
        subtitle = "Points are jittered"
   ) +
   theme_few()
 ```
 
-
 In *Figure 6* it is apparent that the 7 coffees with especially small bags are outliers. The most expensive coffee has a `bag_size` around 10 oz. 
 
-
 ```{r}
-#| label: roaster_price_averages
+#| label: roaster-price-averages
 #| echo: false
 coffee_clean <- coffee_clean |>
   group_by(roaster) |>
@@ -258,9 +239,8 @@ coffee_clean <- coffee_clean |>
 ```
 
 ```{r}
-#| label: tbl_roaster_price_averages
+#| label: roaster-avg-price-table
 #| echo: false
-#| tbl-cap: "Prodigal stands out as the most expensive"
 coffee_clean |>
   filter(roaster != "Botz") |>
   group_by(roaster) |>
@@ -269,16 +249,11 @@ coffee_clean |>
     mean_adj_price = mean(adj_price, na.rm = TRUE)) |>
   arrange(desc(median_adj_price)) |>
   flextable() |>
+  set_caption(caption = "Figure 7: Prodigal stands out as the most expensive") |>
   theme_vanilla()
 ```
 
-Figure 6 shows the 15 roasters ranked by `median_adj_price`, and also shows `mean_adj_price` and Prodigal stands out as significantly more expensive than all others.
+Figure 6 shows the 15 roasters ranked by `median_adj_price`, and also shows `mean_adj_price` and Prodigal stands out as significantly more exp
 
-
-```{r}
-coffee_clean |>
-  ggplot(., aes(x = roaster, y = median_adj_price)) + 
-  geom_point() + 
-  labs(title = "Median Adjusted Price by Roaster", x = "Roaster", y = "Median Adjusted Price") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
+To do:
+- Impact of origin, varietals, etc. 

@@ -1,0 +1,6 @@
+# R Data Science Standards
+
+- **Syntax:** Always default to modern `tidyverse` packages (`dplyr`, `ggplot2`, `readr`) over base R.
+- **Reporting:** Use Quarto (`.qmd`) for all reports, avoiding standard R Markdown. 
+- **Data Safety:** Never `print()` entire data frames to the console. Always use `dplyr::glimpse()` or `head()` to inspect data structures so you do not flood the context window.
+- **Data Ingestion:** When processing external tabular data (like spreadsheet exports), explicitly define column types. Ensure phone numbers and alphanumeric IDs (e.g., "GRPLAY9 - Play 9 Ops") are parsed strictly as characters so they aren't accidentally converted into dates or truncated.

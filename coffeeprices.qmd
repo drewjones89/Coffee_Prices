@@ -11,6 +11,7 @@ execute:
 #| label: packages
 #| echo: false
 #| message: false
+#| warning: false
 library(readxl)
 library(tidyverse)
 library(skimr)
@@ -255,5 +256,71 @@ coffee_clean |>
 
 Figure 6 shows the 15 roasters ranked by `median_adj_price`, and also shows `mean_adj_price` and Prodigal stands out as significantly more exp
 
-To do:
-- Impact of origin, varietals, etc. 
+
+
+```{r}
+#| label: origin-roaster-lollipop
+#| warning: false
+coffee_clean |>
+  filter(!is.na(origin_state)) |>
+  group_by(origin_state) |>
+  summarise(
+    n_roasters = n_distinct(roaster),
+    total_bags = n(),
+    .groups = "drop"
+  ) |>
+  mutate(origin_state = fct_reorder(origin_state, n_roasters)) |>
+  ggplot(aes(y = origin_state, x = n_roasters)) +
+  geom_segment(aes(x = 0, xend = n_roasters, yend = origin_state), color = "grey60") +
+  geom_point(aes(size = total_bags, color = total_bags)) +
+  scale_color_viridis_c(option = "magma", begin = 0.3, end = 0.9, name = "Total Bags\n Offered") +
+  scale_size_continuous(range = c(2, 10), guide = "none") +
+  scale_x_continuous(breaks = 1:15, expand = expansion(mult = c(0, 0.05))) +
+  labs(
+    title = "Colombia is ubiquitour",
+    subtitle = "Point size and color = total offerings",
+    x = "Offered by roasters",
+    y = NULL,
+    caption = "Source: coffeelist1.xlsx"
+  ) +
+  theme_few()
+```
+
+```{r}
+#| label: colombia-ethiopia-boxplot
+#| warning: false
+coffee_clean |>
+  filter(origin_state %in% c("Colombia", "Ethiopia")) |>
+  mutate(origin_state = fct_reorder(origin_state, adj_price, .fun = median)) |>
+  ggplot(aes(x = origin_state, y = adj_price)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.15, size = 1.5, alpha = 0.5) +
+  scale_y_log10() +
+  labs(
+    title = "Colombia and Ethiopia have similar medians but Colombia runs wider",
+    x = NULL,
+    y = "Adjusted Price, log scale (USD)",
+    caption = "Source: coffeelist1.xlsx"
+  ) +
+  theme_few()
+```
+
+```{r}
+#| label: honduras-ecuador-burundi-boxplot
+#| warning: false
+coffee_clean |>
+  filter(origin_state %in% c("Honduras", "Ecuador", "Burundi")) |>
+  mutate(origin_state = fct_reorder(origin_state, adj_price, .fun = median)) |>
+  ggplot(aes(x = origin_state, y = adj_price)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.15, size = 1.5, alpha = 0.5) +
+  scale_y_log10() +
+  labs(
+    title = "Ecuador commands a clear price premium",
+    x = NULL,
+    y = "Adjusted Price, log scale (USD)",
+    caption = "Source: coffeelist1.xlsx"
+  ) +
+  theme_few()
+```
+
